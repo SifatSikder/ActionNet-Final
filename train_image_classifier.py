@@ -226,22 +226,15 @@ tf.app.flags.DEFINE_boolean(
 
 FLAGS = tf.app.flags.FLAGS
 
-
 def _configure_learning_rate(num_samples_per_epoch, global_step):
   """Configures the learning rate.
-
   Args:
     num_samples_per_epoch: The number of samples in each epoch of training.
     global_step: The global_step tensor.
-
   Returns:
     A `Tensor` representing the learning rate.
-
-  Raises:
-    ValueError: if
   """
-  decay_steps = int(num_samples_per_epoch / FLAGS.batch_size *
-                    FLAGS.num_epochs_per_decay)
+  decay_steps = int(num_samples_per_epoch / FLAGS.batch_size *FLAGS.num_epochs_per_decay)
   if FLAGS.sync_replicas:
     decay_steps /= FLAGS.replicas_to_aggregate
 
@@ -263,8 +256,7 @@ def _configure_learning_rate(num_samples_per_epoch, global_step):
                                      cycle=False,
                                      name='polynomial_decay_learning_rate')
   else:
-    raise ValueError('learning_rate_decay_type [%s] was not recognized',
-                     FLAGS.learning_rate_decay_type)
+    raise ValueError('learning_rate_decay_type [%s] was not recognized',FLAGS.learning_rate_decay_type)
 
 
 def _configure_optimizer(learning_rate):
@@ -321,10 +313,8 @@ def _configure_optimizer(learning_rate):
 
 def _get_init_fn():
   """Returns a function run by the chief worker to warm-start the training.
-
   Note that the init_fn is only run when initializing the model during the very
   first global step.
-
   Returns:
     An init function run by the supervisor.
   """
@@ -335,14 +325,12 @@ def _get_init_fn():
   # ignoring the checkpoint anyway.
   if tf.train.latest_checkpoint(FLAGS.train_dir):
     tf.logging.info(
-        'Ignoring --checkpoint_path because a checkpoint already exists in %s'
-        % FLAGS.train_dir)
+        'Ignoring --checkpoint_path because a checkpoint already exists in %s'% FLAGS.train_dir)
     return None
 
   exclusions = []
   if FLAGS.checkpoint_exclude_scopes:
-    exclusions = [scope.strip()
-                  for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
+    exclusions = [scope.strip() for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
 
   # TODO(sguada) variables.filter_variables()
   variables_to_restore = []
@@ -365,10 +353,8 @@ def _get_init_fn():
       variables_to_restore,
       ignore_missing_vars=FLAGS.ignore_missing_vars)
 
-
 def _get_variables_to_train():
   """Returns a list of variables to train.
-
   Returns:
     A list of variables to train by the optimizer.
   """
@@ -424,9 +410,7 @@ def main(_):
     # Select the preprocessing function #
     #####################################
     preprocessing_name = FLAGS.preprocessing_name or FLAGS.model_name
-    image_preprocessing_fn = preprocessing_factory.get_preprocessing(
-        preprocessing_name,
-        is_training=True)
+    image_preprocessing_fn = preprocessing_factory.get_preprocessing(preprocessing_name,is_training=True)
 
     ##############################################################
     # Create a dataset provider that loads data from the dataset #
@@ -453,8 +437,7 @@ def main(_):
           num_threads=FLAGS.num_preprocessing_threads,
           capacity=5 * FLAGS.batch_size)
       if FLAGS.output_mode == 0 or FLAGS.output_mode == 1:
-        labels = slim.one_hot_encoding(
-            labels, dataset.num_classes - FLAGS.labels_offset)
+        labels = slim.one_hot_encoding(labels, dataset.num_classes - FLAGS.labels_offset)
       batch_queue = slim.prefetch_queue.prefetch_queue(
           [image_a, image_b, labels], capacity=2 * deploy_config.num_clones)
 
@@ -469,8 +452,7 @@ def main(_):
       #############################
       if FLAGS.output_mode == 0:
         logits, end_points = network_fn(image_a, image_b)
-        slim.losses.softmax_cross_entropy(
-            logits, labels, label_smoothing=FLAGS.label_smoothing, weights=1.0)
+        slim.losses.softmax_cross_entropy(logits, labels, label_smoothing=FLAGS.label_smoothing, weights=1.0)
       elif FLAGS.output_mode == 2:
         logits, end_points = network_fn(image_a, image_b)
         labels = tf.cast(labels, tf.int32)
@@ -481,8 +463,7 @@ def main(_):
         slim.losses.add_loss(crf_loss)
       elif FLAGS.output_mode == 1:
         logits, end_points = network_fn(image_a, image_b)
-        slim.losses.softmax_cross_entropy(
-            logits, labels, label_smoothing=FLAGS.label_smoothing, weights=1.0)
+        slim.losses.softmax_cross_entropy(logits, labels, label_smoothing=FLAGS.label_smoothing, weights=1.0)
       else:
         logits, end_points = network_fn(image_a, image_b)
         if 'AuxLogits' in end_points:
@@ -507,24 +488,19 @@ def main(_):
     for end_point in end_points:
       x = end_points[end_point]
       summaries.add(tf.summary.histogram('activations/' + end_point, x))
-      summaries.add(tf.summary.scalar('sparsity/' + end_point,
-                                      tf.nn.zero_fraction(x)))
-
+      summaries.add(tf.summary.scalar('sparsity/' + end_point,tf.nn.zero_fraction(x)))
     # Add summaries for losses.
     for loss in tf.get_collection(tf.GraphKeys.LOSSES, first_clone_scope):
       summaries.add(tf.summary.scalar('losses/%s' % loss.op.name, loss))
-
     # Add summaries for variables.
     for variable in slim.get_model_variables():
       summaries.add(tf.summary.histogram(variable.op.name, variable))
-
     #################################
     # Configure the moving averages #
     #################################
     if FLAGS.moving_average_decay:
       moving_average_variables = slim.get_model_variables()
-      variable_averages = tf.train.ExponentialMovingAverage(
-          FLAGS.moving_average_decay, global_step)
+      variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)
     else:
       moving_average_variables, variable_averages = None, None
 
@@ -553,30 +529,22 @@ def main(_):
     variables_to_train = _get_variables_to_train()
 
     #  and returns a train_tensor and summary_op
-    total_loss, clones_gradients = model_deploy.optimize_clones(
-        clones,
-        optimizer,
-        var_list=variables_to_train)
+    total_loss, clones_gradients = model_deploy.optimize_clones(clones,optimizer,var_list=variables_to_train)
     # Add total_loss to summary.
     summaries.add(tf.summary.scalar('total_loss', total_loss))
 
     # Create gradient updates.
-    grad_updates = optimizer.apply_gradients(clones_gradients,
-                                             global_step=global_step)
+    grad_updates = optimizer.apply_gradients(clones_gradients,global_step=global_step)
     update_ops.append(grad_updates)
-
     update_op = tf.group(*update_ops)
     with tf.control_dependencies([update_op]):
       train_tensor = tf.identity(total_loss, name='train_op')
 
     # Add the summaries from the first clone. These contain the summaries
     # created by model_fn and either optimize_clones() or _gather_clone_loss().
-    summaries |= set(tf.get_collection(tf.GraphKeys.SUMMARIES,
-                                       first_clone_scope))
-
+    summaries |= set(tf.get_collection(tf.GraphKeys.SUMMARIES,first_clone_scope))
     # Merge all summaries together.
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
-
     ###########################
     # Kicks off the training. #
     ###########################
@@ -594,6 +562,5 @@ def main(_):
         saver = tf.train.Saver(write_version=tf.train.SaverDef.V2),
         session_config=tf.ConfigProto(allow_soft_placement=True),
         sync_optimizer=optimizer if FLAGS.sync_replicas else None)
-
 if __name__ == '__main__':
   tf.app.run()
